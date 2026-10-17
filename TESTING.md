@@ -62,5 +62,8 @@ is required before recommending this release as playable on Deck.
 - [ ] Game saves, exits normally and reloads a new save — blocked by startup crash.
 - [ ] Gaming Mode gamepad works, including both triggers — blocked by startup crash.
 
-Five offline tests pass locally and on GitHub Actions. They exercise setup,
-launcher argv/environment and failure handling; they do not run the retail game.
+The Bash entry point now downloads the pinned upstream installer, verifies its
+SHA-256, prompts for paths and delegates installation to the Python helper.
+Nine offline tests cover both entry points, including cancellation, checksum
+rejection, paths with spaces, launcher environment and failed installation.
+These do not run the retail game or resolve the stock startup crash.

@@ -9,21 +9,19 @@ before reaching the menu. See [test results](TESTING.md).
 ## Setup on Steam Deck
 
 1. Switch to Desktop Mode and install **Proton Experimental** from Steam → Library → Tools.
-2. Download this repo and the [Windows repack installer](https://github.com/BeyondTomrrow/2K5Remade/releases/latest).
+2. Download and extract this repo.
 3. Have your own extracted Xbox disc ready. Its folder must contain `default.xbe`
    and `vc_53450030`.
-4. Open Konsole in this repo and run the command below. Change the installer and
-   disc paths to match yours. The output folder must not already exist.
+4. Open Konsole in this repo and run:
 
 ```sh
-python3 setup.py \
-  --installer "$HOME/Downloads/NFL2K5-PC-Setup.exe" \
-  --disc "$HOME/Games/NFL2K5-disc" \
-  --proton "$HOME/.local/share/Steam/steamapps/common/Proton - Experimental/proton" \
-  --steam "$HOME/.local/share/Steam" \
-  --output "$HOME/Games/2K5-Repack-Proton" \
-  --add-to-steam
+bash setup.sh
 ```
+
+The script finds Steam and Proton Experimental, asks for your disc and installation
+folders, downloads and verifies the original repack installer, installs into a
+fresh Proton prefix, and adds a Steam shortcut. Python 3 is required and is
+included with SteamOS. It does not need sudo or a separate PC.
 
 5. Find **2K5 Remade (Repack)** in Steam. Leave **Force compatibility tool**
    unchecked—the script already starts Proton. Select the **Gamepad** controller
