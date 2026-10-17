@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -17,7 +18,7 @@ def win(path):
 def clean_env(proton, steam, prefix, inherited=None):
     env = dict(os.environ if inherited is None else inherited)
     for key in list(env):
-        if key.startswith(('NFL2K5_', 'RECOMP_')) or key in ('WINEPREFIX', 'WINEDLLOVERRIDES'):
+        if key.startswith(('NFL2K5_', 'RECOMP_')) or key in ('WINEPREFIX', 'WINEDLLOVERRIDES', 'PROTON_USE_WINED3D'):
             del env[key]
     env.update(STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), STEAM_COMPAT_DATA_PATH=str(prefix))
     return env
@@ -48,16 +49,18 @@ def finish(output, game, proton, steam):
     # layer on it. Preserve Steam's identity and controller environment.
     script = '#!/bin/sh\nset -eu\n'
     script += 'for key in $(env | cut -d= -f1); do case "$key" in NFL2K5_*|RECOMP_*) unset "$key";; esac; done\n'
-    script += 'unset WINEPREFIX WINEDLLOVERRIDES\n'
+    script += "unset WINEPREFIX WINEDLLOVERRIDES PROTON_USE_WINED3D\nexport WINEDLLOVERRIDES='d3d11,dxgi=b;d3dcompiler_47=n,b'\n"
     for key, value in {'STEAM_COMPAT_CLIENT_INSTALL_PATH':steam, 'STEAM_COMPAT_DATA_PATH':output/'prefix'}.items():
         script += f'export {key}={shlex.quote(str(value))}\n'
     script += f'cd {shlex.quote(str(game))}\n'
-    script += f'exec {shlex.quote(str(proton))} waitforexitandrun {shlex.quote(str(exe))} "$@"\n'
+    script += f'exec {shlex.quote(str(proton))} runinprefix {shlex.quote(str(exe))} "$@"\n'
     launcher.write_text(script)
     launcher.chmod(0o755)
     receipt = {'format':1, 'game':str(game), 'proton':str(proton), 'steam':str(steam),
                'prefix':str(output/'prefix'), 'executable_sha256':sha(exe),
-               'status':'installed-not-gameplay-verified'}
+               'status':'installed-not-gameplay-verified', 'launch_mode':'runinprefix',
+               'd3dcompiler_sha256':sha(game/'d3dcompiler_47.dll'),
+               'presentation':'ESPN (Original)', 'render_scale':2}
     (output/'setup-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
     # A .desktop file is optional convenience input for Valve's own helper.
     def quote(value):
@@ -69,8 +72,9 @@ def finish(output, game, proton, steam):
     return receipt
 
 
-def setup(installer, disc, proton, steam, output):
+def setup(installer, disc, proton, steam, output, d3dcompiler):
     installer=checked(installer,'Upstream installer')
+    d3dcompiler=checked(d3dcompiler,'Microsoft x64 shader compiler')
     proton=checked(proton,'Proton script')
     steam=Path(steam).expanduser().resolve()
     disc=Path(disc).expanduser().resolve()
@@ -99,16 +103,23 @@ def setup(installer, disc, proton, steam, output):
                               stdout=log,stderr=subprocess.STDOUT)
     if result.returncode:
         raise RuntimeError(f'Installer exited {result.returncode}; retained logs in {output}')
+    shutil.copy2(d3dcompiler,game/'d3dcompiler_47.dll')
+    # Stock settings, written only inside this new prefix before its first run.
+    # ESPN Original uses the game's scorebug; HTML overlays require WebView2.
+    user=output/'prefix/pfx/drive_c/users/steamuser/AppData/Local/NFL2K5-PC'
+    (user/'mods').mkdir(parents=True,exist_ok=True)
+    (user/'mods/presentation.ini').write_text('package = ESPN (Original)\n')
+    (user/'nfl2k5_video.ini').write_text('mode = 1\nresolution = 1280x800\nscale = 2\n')
     return finish(output,game,proton,steam)
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    for flag in ['installer','disc','proton','steam','output']:
+    for flag in ['installer','disc','proton','steam','output','d3dcompiler']:
         p.add_argument('--'+flag,required=True,type=Path)
     p.add_argument('--add-to-steam',action='store_true',help='Invoke Valve steamos-add-to-steam after installation')
     a=p.parse_args()
-    receipt=setup(a.installer,a.disc,a.proton,a.steam,a.output)
+    receipt=setup(a.installer,a.disc,a.proton,a.steam,a.output,a.d3dcompiler)
     output=a.output.expanduser().resolve()
     if a.add_to_steam:
         subprocess.run(['steamos-add-to-steam',str(output/'2K5 Remade (Repack).desktop')],check=True)

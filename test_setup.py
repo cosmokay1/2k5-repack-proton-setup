@@ -20,9 +20,10 @@ class SetupTest(unittest.TestCase):
         self.steam=self.root/'Steam';(self.steam/'steamapps').mkdir(parents=True)
         self.proton=self.root/'proton';self.proton.write_text('#!/bin/sh\nexit 0\n');self.proton.chmod(0o755)
         self.output=self.root/'clean install'
+        self.compiler=self.root/'d3dcompiler_47.dll';self.compiler.write_bytes(b'MZfixture')
 
     def install(self):
-        return setup.setup(self.installer,self.disc,self.proton,self.steam,self.output)
+        return setup.setup(self.installer,self.disc,self.proton,self.steam,self.output,self.compiler)
 
     def fake_install(self,*args,**kwargs):
         game=self.output/'game';game.mkdir(exist_ok=True);(game/'NFL2K5.exe').write_bytes(b'MZfixture')
@@ -35,16 +36,21 @@ class SetupTest(unittest.TestCase):
         self.assertEqual((self.output/'game/original/disc').resolve(),self.disc)
         cmd=call.call_args.args[0]
         self.assertIn('/DIR='+setup.win(self.output/'game'),cmd)
+        self.assertEqual((self.output/'game/d3dcompiler_47.dll').read_bytes(),b'MZfixture')
+        user=self.output/'prefix/pfx/drive_c/users/steamuser/AppData/Local/NFL2K5-PC'
+        self.assertEqual((user/'mods/presentation.ini').read_text(),'package = ESPN (Original)\n')
+        self.assertIn('scale = 2', (user/'nfl2k5_video.ini').read_text())
         self.assertEqual((self.disc/'default.xbe').read_bytes(),b'owned fixture')
         # Replace only the fixture Proton script with an argv/env observer.
-        self.proton.write_text('#!/usr/bin/env python3\nimport os,sys,json\nprint(json.dumps({"argv":sys.argv[1:],"cwd":os.getcwd(),"prefix":os.environ["STEAM_COMPAT_DATA_PATH"],"id":os.environ.get("SteamGameId"),"custom":[k for k in os.environ if k.startswith(("NFL2K5_","RECOMP_"))]}))\n')
+        self.proton.write_text('#!/usr/bin/env python3\nimport os,sys,json\nprint(json.dumps({"argv":sys.argv[1:],"cwd":os.getcwd(),"prefix":os.environ["STEAM_COMPAT_DATA_PATH"],"id":os.environ.get("SteamGameId"),"custom":[k for k in os.environ if k.startswith(("NFL2K5_","RECOMP_"))],"overrides":os.environ.get("WINEDLLOVERRIDES")}))\n')
         env=dict(os.environ,SteamGameId='123',NFL2K5_ROOT='bad',RECOMP_SHADOW_LIVE='bad')
         r=subprocess.run([str(self.output/'play.sh'),'--validate'],env=env,capture_output=True,text=True,check=True)
         observed=json.loads(r.stdout)
         self.assertEqual(observed['custom'],[])
         self.assertEqual(observed['id'],'123')
+        self.assertEqual(observed['overrides'],'d3d11,dxgi=b;d3dcompiler_47=n,b')
         self.assertEqual(observed['cwd'],str(self.output/'game'))
-        self.assertEqual(observed['argv'],['waitforexitandrun',str(self.output/'game/NFL2K5.exe'),'--validate'])
+        self.assertEqual(observed['argv'],['runinprefix',str(self.output/'game/NFL2K5.exe'),'--validate'])
 
     def test_existing_output_refused_before_launch(self):
         self.output.mkdir()

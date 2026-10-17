@@ -14,13 +14,12 @@ if [[ $(uname -s) != Linux ]]; then
     echo 'Run this script on your Steam Deck or Linux PC.' >&2
     exit 1
 fi
-for tool in curl sha256sum; do
+for tool in curl sha256sum bsdtar; do
     command -v "$tool" >/dev/null 2>&1 || { echo "Required tool missing: $tool" >&2; exit 1; }
 done
 printf '\n2K5 Remade — Steam Deck setup\n'
-printf 'Known issue: the tested stock release crashes before the menu.\n'
-printf 'This sets up a separate installation; it does not fix that crash.\n\n'
-read -r -p 'Continue with this experimental setup? [y/N] ' answer
+printf 'Installs the original repack and Microsoft shader compiler in a separate prefix.\n\n'
+read -r -p 'Continue with setup? [y/N] ' answer
 [[ $answer == y || $answer == Y ]] || exit 0
 steam=''
 for candidate in "$HOME/.local/share/Steam" "$HOME/.steam/steam"; do
@@ -66,7 +65,29 @@ if ! valid_installer; then
     mv -- "$partial" "$installer"
     trap - EXIT
 fi
-args=(--installer "$installer" --disc "$disc" --proton "$proton" --steam "$steam" --output "$output")
+# Standard runtime dependency, fetched from Microsoft rather than bundled here.
+# Cabinet member documented by Winetricks; the downloader/extractor is original.
+compiler="$cache/d3dcompiler_47.dll"
+compiler_sha=e994847e01a6f1e4cbdc5a864616ac262f67ee4f14db194984661a8d927ab7f4
+if [[ ! -f $compiler ]] || [[ $(sha256sum -- "$compiler" | cut -d ' ' -f1) != "$compiler_sha" ]]; then
+    echo 'Downloading the Microsoft shader compiler runtime…'
+    cab_partial=$(mktemp "$cache/compiler-cab.XXXXXX")
+    dll_partial=$(mktemp "$cache/compiler-dll.XXXXXX")
+    trap 'rm -f -- "${cab_partial:-}" "${dll_partial:-}"' EXIT
+    curl --fail --location --proto '=https' --tlsv1.2 --output "$cab_partial" \
+        'https://download.microsoft.com/download/B/0/C/B0C80BA3-8AD6-4958-810B-6882485230B5/standalonesdk/Installers/61d57a7a82309cd161a854a6f4619e52.cab'
+    [[ $(sha256sum -- "$cab_partial" | cut -d ' ' -f1) == f736e161547095bb8d98c636b85fdfeb4070fefeee3c3745db3ce88f6eb1d9de ]] || {
+        echo 'Microsoft cabinet checksum mismatch; stopping.' >&2; exit 1;
+    }
+    bsdtar -xOf "$cab_partial" fil3585cb2ea5db13cc0838f8d06b5c9679 > "$dll_partial"
+    [[ $(sha256sum -- "$dll_partial" | cut -d ' ' -f1) == "$compiler_sha" ]] || {
+        echo 'Shader compiler checksum mismatch; stopping.' >&2; exit 1;
+    }
+    mv -- "$dll_partial" "$compiler"
+    rm -f -- "$cab_partial"
+    trap - EXIT
+fi
+args=(--d3dcompiler "$compiler" --installer "$installer" --disc "$disc" --proton "$proton" --steam "$steam" --output "$output")
 if command -v steamos-add-to-steam >/dev/null 2>&1; then
     args+=(--add-to-steam)
 fi
@@ -74,4 +95,4 @@ python3 "$script_dir/setup.py" "${args[@]}"
 printf '\nSetup finished. In Steam, use 2K5 Remade (Repack).\n'
 printf 'Leave Force compatibility tool OFF and select the Gamepad template.\n'
 printf 'If no shortcut appeared, add %s/play.sh as a non-Steam game.\n' "$output"
-printf 'The stock startup crash remains unresolved; see TESTING.md.\n'
+printf 'Uses the stock ESPN scorebug and 2x render scale. See TESTING.md for limits.\n'
