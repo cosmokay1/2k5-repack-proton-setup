@@ -8,6 +8,14 @@ A shell script starts the repack through Proton; it has no UI or background serv
 The repack is [BeyondTomrrow/2K5Remade](https://github.com/BeyondTomrrow/2K5Remade).
 This project is independent setup tooling, not the game or an official release.
 
+## Current compatibility result
+
+**Setup completes, but this stock release is not yet playable in the tested clean
+Proton configuration.** On October 16, 2026, `v0.6.1-hotfix` crashed during Xbox
+memory initialization under Proton Experimental, both in `--validate` and through
+its Steam shortcut. This helper is available for reproduction and setup work;
+it is not a verified working Deck package. See [TESTING.md](TESTING.md).
+
 ## What you need
 
 - An x86-64 Linux PC or Steam Deck, Steam, Python 3, and an installed Proton version.
