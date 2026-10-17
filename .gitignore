@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.exe
+*.iso
+*.xbe
+*.mp4
+local-test/
