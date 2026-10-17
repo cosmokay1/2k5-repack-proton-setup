@@ -66,4 +66,6 @@ The Bash entry point now downloads the pinned upstream installer, verifies its
 SHA-256, prompts for paths and delegates installation to the Python helper.
 Nine offline tests cover both entry points, including cancellation, checksum
 rejection, paths with spaces, launcher environment and failed installation.
-These do not run the retail game or resolve the stock startup crash.
+All nine passed on the development Mac and on the actual Steam Deck; `bash -n`
+also passed on both. These do not run the retail game or resolve the stock
+startup crash.
